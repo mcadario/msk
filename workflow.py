@@ -123,7 +123,7 @@ class MSKWorkflow:
         self.reactivation = ReactivationPlanner(store, self.bplane)
         self.consolidation = ConsolidationModule(store, llm_client)
 
-        self.app = self._build_graph()
+        self.app = self._build_graph() #this is the stategraph COMPILED
 
     # ------------------------------------------------------------------
     # Public entry point

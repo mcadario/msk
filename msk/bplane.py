@@ -66,7 +66,7 @@ class BPlane:
     def classify(self, task: str, context: dict | None = None) -> TaskClassification:
         """Classify a task and return a TaskClassification with level_band."""
         if self.client is None:
-            self._classify_heuristic(task)
+            return self._classify_heuristic(task)
 
         try:
             result = self._classify_with_llm(task)
