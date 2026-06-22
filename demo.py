@@ -9,7 +9,6 @@ Phases:
 from __future__ import annotations
 
 import os
-import sys
 
 import anthropic
 from dotenv import load_dotenv
@@ -21,6 +20,7 @@ from rich.table import Table
 
 load_dotenv()
 
+from msk.models import KNode, KNodeType, ActivationMode
 from msk.storage import KNodeStore
 from sim.environment import SimulatedRepository
 from workflow import MSKWorkflow
@@ -28,6 +28,29 @@ from workflow import MSKWorkflow
 console = Console()
 
 TASK = "The integration tests are failing. Debug and fix the issue so tests pass."
+
+
+def seed_demo_knowledge(store: KNodeStore) -> None:
+    """Pre-load K-nodes so reactivation is visible from run 1."""
+    node = KNode(
+        type=KNodeType.tool_pattern,
+        content=KNode.KNodeContent(
+            text="Integration tests run with make test-integration",
+            structured={"preferred_commands": ["make test-integration"]},
+        ),
+        activation=KNode.KNodeActivation(
+            target_agents=["planner", "executor"],
+            level=2,
+            mode=ActivationMode.tool_bias,
+            intensity=0.85,
+        ),
+        lifecycle=KNode.KNodeLifecycle(strength=0.8),
+    )
+    triggers = KNode.KNodeTriggers()
+    for kw in ["integration", "test", "make", "repository"]:
+        triggers.add(kw, "keyword")
+    node.triggers = triggers
+    store.save(node)
 
 
 def _print_memory_log(log: list[str]) -> None:
@@ -39,7 +62,7 @@ def _print_memory_log(log: list[str]) -> None:
             rprint(f"  [red]│[/red] {line}")
         elif "B-plane" in line:
             rprint(f"  [cyan]│[/cyan] {line}")
-        elif "Memory updater" in line or "formed" in line or "strengthened" in line or "weakened" in line:
+        elif any(w in line for w in ("Memory updater", "formed", "strengthened", "weakened")):
             rprint(f"  [yellow]│[/yellow] {line}")
         else:
             rprint(f"{prefix}{line}")
@@ -56,9 +79,9 @@ def _print_result(state: dict, phase: str) -> None:
 
     if results:
         t = Table(show_header=True, header_style="dim", box=None, padding=(0, 2))
-        t.add_column("Step", style="dim", width=4)
-        t.add_column("Command", width=36)
-        t.add_column("RC", width=4)
+        t.add_column("Step",           style="dim", width=4)
+        t.add_column("Command",        width=36)
+        t.add_column("RC",             width=4)
         t.add_column("Output snippet", width=50)
         for r in results:
             rc_style = "green" if r["returncode"] == 0 else "red"
@@ -106,26 +129,31 @@ def show_kplane(store: KNodeStore) -> None:
 
 def main() -> None:
     api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        rprint("[red]Error: ANTHROPIC_API_KEY not set. Add it to .env or export it.[/red]")
-        sys.exit(1)
+    client  = anthropic.Anthropic(api_key=api_key) if api_key else None
+    no_llm  = client is None
 
-    client = anthropic.Anthropic(api_key=api_key)
-    store  = KNodeStore(":memory:")     # persistent: pass a file path instead
-    env    = SimulatedRepository(version=1)
+    if no_llm:
+        rprint("[yellow]⚠ No ANTHROPIC_API_KEY — running in no_llm mode (deterministic fallbacks).[/yellow]")
 
-    wf = MSKWorkflow(client, store, env)
+    store = KNodeStore(":memory:")
+    env   = SimulatedRepository(version=1)
+    wf    = MSKWorkflow(client=client, store=store, env=env, no_llm=no_llm)
 
     console.print(Panel.fit(
         "[bold]MSK v0 — Memory as Reactivation Demo[/bold]\n"
-        "[dim]Paper: 'MSK: K-S System for Multi-Agent Architectures'[/dim]",
+        "[dim]Paper: 'MSK: K-S System for Multi-Agent Architectures'[/dim]\n"
+        + ("[dim]Mode: no_llm (deterministic)[/dim]" if no_llm else "[dim]Mode: LLM enabled[/dim]"),
         border_style="cyan",
     ))
 
-    # ── Phase 1: First run — no prior memory ──────────────────────────
+    # seed K-plane before phase 1 so reactivation is visible immediately
+    seed_demo_knowledge(store)
+    rprint("  [dim]K-plane seeded with 1 K-node (make test-integration)[/dim]\n")
+
+    # ── Phase 1: First run — seeded memory reactivated ────────────────
     run_phase(
         wf, 1, "Learning",
-        "First run. No K-nodes exist. Agent discovers the test command.\n"
+        "Seeded K-node reactivated. Agent uses make test-integration.\n"
         "  Formation module extracts K-nodes from the task events.",
     )
     rprint("\n  [bold dim]K-plane after phase 1:[/bold dim]")
@@ -135,7 +163,7 @@ def main() -> None:
     console.print()
     run_phase(
         wf, 2, "Reactivation",
-        "Same task, same repo. K-nodes from phase 1 are now reactivated.\n"
+        "Same task, same repo. K-nodes reactivated.\n"
         "  Planner receives tool_bias instructions; plan should be more direct.",
     )
     rprint("\n  [bold dim]K-plane after phase 2:[/bold dim]")

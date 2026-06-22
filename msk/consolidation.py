@@ -11,7 +11,7 @@ six consolidation operations:
 
 import string
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from typing import Optional
 
 import anthropic
@@ -229,7 +229,7 @@ class ConsolidationModule:
 
     def _decay(self, nodes: list[KNode]) -> int:
         decayed = 0
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for node in nodes:
             if node.lifecycle.last_used_at is None:
                 continue
