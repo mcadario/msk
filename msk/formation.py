@@ -17,7 +17,7 @@ from .models import (
     KNodeType,
 )
 
-_FORMATION_PROMPT = """You are the formation module of the MSK memory architecture.
+_FORMATION_PROMPT = """You are te formation module of the MSK memory architecture.
 Analyze these events from a software debugging task and extract memorable K-nodes.
 
 Events:
@@ -151,16 +151,20 @@ class FormationModule:
             relations=KNode.KNodeRelations(),
         )
     
+    TRIVIAL_COMMANDS = {"ls", "ls -la", "pwd", "cat README.md", "cat readme.md"}
+    
     #rule-base: doesn't use anthropic apis (demo scenario)
     def _extract_rule_based(self, events: list[Event]) -> list[KNode]:
         nodes = []
         for event in events:
+            if event.tool_input and event.tool_input.strip() in self.TRIVIAL_COMMANDS:
+                continue
             if event.outcome == "success" and event.tool_name == "shell":
                 # successful command → tool_pattern K-node
                 node = KNode(
                     type=KNodeType.tool_pattern,
                     content=KNode.KNodeContent(
-                        text=f"Command succeeded: {event.tool_input}",
+                        text=f"For this repository, use: {event.tool_input}",
                         structured={"preferred_commands": [event.tool_input]},
                     ),
                     lifecycle=KNode.KNodeLifecycle(strength=0.7),

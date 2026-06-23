@@ -392,7 +392,6 @@ class MSKWorkflow:
     # ------------------------------------------------------------------
     # Node: evaluator
     # ------------------------------------------------------------------
-
     def _evaluator(self, state: MSKState) -> MSKState:
         results = state["execution_results"]
         task    = state["task"]
@@ -401,24 +400,31 @@ class MSKWorkflow:
         if not results:
             return {**state, "success": False, "outcome": "no steps executed"}
 
-        last = results[-1]
+        test_keywords = ("test-integration", "test:integration", "pytest", "jest", "spec")
 
-        # Fast path — test command succeeded (works with or without LLM)
-        if last["success"] and any(
-            kw in last["command"].lower() for kw in ("test", "pytest", "jest", "spec")
-        ):
-            log.append("Evaluator: ✓ task succeeded")
-            return {**state, "success": True, "outcome": last["stdout"][:100], "memory_log": log}
+        # scan ALL results for a successful test command
+        successful_test = next(
+            (r for r in results
+            if r["success"] and any(kw in r["command"].lower() for kw in test_keywords)),
+            None,
+        )
 
-        # no_llm: fall back to returncode check
+        if successful_test:
+            log.append(f"Evaluator: ✓ task succeeded via `{successful_test['command']}`")
+            return {
+                **state,
+                "success": True,
+                "outcome": successful_test["stdout"][:100],
+                "memory_log": log,
+            }
+
+        # no successful test command found yet
         if self.no_llm:
-            success = last["success"]
-            outcome = last["stdout"][:80]
-            label   = "✓ success" if success else "· continuing"
-            log.append(f"Evaluator [no_llm]: {label}")
-            return {**state, "success": success, "outcome": outcome, "memory_log": log}
+            log.append("Evaluator [no_llm]: · no test success yet, continuing")
+            return {**state, "success": False, "outcome": "", "memory_log": log}
 
         # LLM evaluation for ambiguous outcomes
+        last         = results[-1]
         results_text = "\n".join(
             f"  Step {r['step']}: `{r['command']}`  rc={r['returncode']}\n"
             f"  {r['stdout'][:200]}"
@@ -463,20 +469,40 @@ class MSKWorkflow:
 
         # 1. Update strength of every K-node that was reactivated
         if pkt_dict:
-            packet  = ActivationPacket.model_validate(pkt_dict)
-            updated = 0
+            packet       = ActivationPacket.model_validate(pkt_dict)
+            strengthened = 0
+            weakened     = 0
+
             for nid in packet.selected_k_node_ids:
                 node = self.store.get(nid)
-                if node:
-                    node.record_use(success)
-                    self.store.update(node)
-                    updated += 1
-            if updated:
-                label = "strengthened" if success else "weakened"
-                log.append(f"Memory updater: {label} {updated} reactivated K-node(s)")
+                if node is None:
+                    continue
+
+                # check if this specific node's preferred commands succeeded
+                preferred = node.content.structured.get("preferred_commands", [])
+                if preferred:
+                    cmd_succeeded = any(
+                        r["success"] and any(cmd in r["command"] for cmd in preferred)
+                        for r in state["execution_results"]
+                    )
+                else:
+                    # non-tool nodes: use overall task success
+                    cmd_succeeded = success
+
+                node.record_use(cmd_succeeded)
+                self.store.update(node)
+
+                if cmd_succeeded:
+                    strengthened += 1
+                else:
+                    weakened += 1
+
+            if strengthened:
+                log.append(f"Memory updater: strengthened {strengthened} K-node(s)")
+            if weakened:
+                log.append(f"Memory updater: weakened {weakened} K-node(s)")
 
         # 2. Form new K-nodes from this task's events
-        # formation uses rule-based fallback automatically when client is None
         new_nodes = self.formation.extract(events, task_id)
         for node in new_nodes:
             self.store.save(node)
