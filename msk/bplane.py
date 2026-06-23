@@ -5,8 +5,7 @@ The B-plane classifies a task along four dimensions:
   scope, uncertainty, risk, and required abstraction.
 It then selects a level-band and builds instructions for the reactivation planner.
 """
-from __future__ import annotations
-
+ 
 import json
 import re
 from typing import Optional

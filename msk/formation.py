@@ -1,6 +1,5 @@
 """Formation module — extracts K-nodes from task events using Claude."""
-from __future__ import annotations
-
+ 
 import json
 import re
 import uuid

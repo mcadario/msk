@@ -12,7 +12,6 @@ The mode parameter controls memory behaviour:
 The no_llm flag disables all Claude API calls and uses deterministic
 fallbacks — useful for demos without an API key.
 """
-from __future__ import annotations
 
 import json
 import re

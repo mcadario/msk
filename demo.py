@@ -6,8 +6,7 @@ Phases:
   3. Migration  — repo switches to npm; K-node fails and is superseded
   4. Recovery   — updated K-node guides the next run correctly
 """
-from __future__ import annotations
-
+ 
 import os
 
 import anthropic

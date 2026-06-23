@@ -3,8 +3,7 @@
 Models the paper's running example: a repository that migrates
 from `make test-integration` to `npm run test:integration`.
 """
-from __future__ import annotations
-
+ 
 
 class SimulatedRepository:
     """

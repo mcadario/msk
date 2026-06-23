@@ -9,8 +9,7 @@ Tasks run against a v1 repository (make test-integration works).
 After 3 tasks, the repo migrates to v2 (npm) and 3 more tasks run.
 We measure: success rate, steps-to-solution, and correct command rate.
 """
-from __future__ import annotations
-
+ 
 import os
 import sys
 import time

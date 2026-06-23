@@ -2,8 +2,7 @@
 
 Implements the MSK_REACTIVATE pseudocode from Section 6.2.3.
 """
-from __future__ import annotations
-
+ 
 from .bplane import BPlane
 from .models import ActivationMode, ActivationPacket, AgentBias, KNode, TaskClassification
 from .storage import KNodeStore
