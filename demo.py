@@ -136,7 +136,7 @@ def main() -> None:
 
     store = KNodeStore(":memory:")
     env   = SimulatedRepository(version=1)
-    wf    = MSKWorkflow(client=client, store=store, env=env, no_llm=no_llm)
+    wf    = MSKWorkflow(client=client, store=store, env=env, no_llm=no_llm) #wf is a CompiledStateGraph (should be)
 
     console.print(Panel.fit(
         "[bold]MSK v0 — Memory as Reactivation Demo[/bold]\n"
